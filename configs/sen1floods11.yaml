@@ -1,0 +1,65 @@
+# FloodSense Configuration for Sen1Floods11 Dataset
+
+dataset:
+  name: Sen1Floods11
+  image_size: 256
+  num_classes: 2
+  in_channels: 3
+
+preprocessing:
+  use_histogram_matching: false
+  use_zscore: false
+  use_adaptive_norm: true
+  adaptive_percentile_low: 2.0
+  adaptive_percentile_high: 98.0
+  use_log_ratio: true
+  log_ratio_clip: 3.0
+  use_ndi: false
+  use_clahe: false
+  clahe_clip_limit: 2.0
+  clahe_tile_size: 8
+  eps: 1.0e-6
+
+model:
+  encoder: efficientnetv2_rw_t
+  pretrained: true
+  hidden_dim: 64
+  lstm_hidden: 128
+  lstm_layers: 1
+  use_attention: true
+  dropout: 0.1
+
+training:
+  epochs: 100
+  batch_size: 8
+  num_workers: 4
+  mixed_precision: true
+  gradient_clip: 1.0
+
+  optimizer:
+    type: AdamW
+    lr: 1.0e-4
+    weight_decay: 0.01
+
+  scheduler:
+    type: cosine
+    warmup_epochs: 5
+    min_lr: 1.0e-6
+
+loss:
+  bce_weight: 1.0
+  dice_weight: 1.0
+  focal_weight: 0.5
+  focal_gamma: 2.0
+  ignore_index: 255
+
+augmentation:
+  horizontal_flip: true
+  vertical_flip: true
+  random_rotate: true
+  color_jitter: false
+  normalize: true
+
+output_dir: ./outputs
+seed: 42
+device: cuda

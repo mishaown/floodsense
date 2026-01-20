@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+.env.local
+.venv/
+nul
+
+# IDE
+.idea/
+.vscode/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Model outputs
+*.pth
+outputs/
+
+# Excluded files
+src/baselines.py
+src/datasets.py
+benchmark.py
+test_baselines.py
+test_datasets.py
+visualize_train.py
+stats/
+tests/
+docs/
+scripts/
+results/
