@@ -5,7 +5,7 @@ Lightweight bi-temporal flood detection from SAR satellite imagery using deep le
 ## Features
 
 - **Bi-temporal change detection**: Processes pre/post flood image pairs
-- **Lightweight architecture**: CNN-LSTM with temporal attention (~14M parameters)
+- **Modular architecture**: TFEN → CTAM → STSM → MSDAM → PUD with configurable temporal modes
 - **Multiple datasets**: Sen1Floods11, S1GFloods, OmbriaS1
 - **Comprehensive metrics**: F1, IoU, Precision, Recall, Kappa, MCC, AUC-ROC
 
@@ -74,13 +74,53 @@ NUM_WORKERS=4
 
 ## Model Architecture
 
-FloodSense processes bi-temporal image pairs through:
+FloodSense processes bi-temporal image pairs through a modular pipeline:
 
-1. **Shared CNN Encoder**: Siamese weight-shared feature extraction
-2. **ConvLSTM**: Temporal sequence modeling
-3. **Temporal Attention**: Cross-temporal change highlighting
-4. **Multi-scale Difference**: Feature-level change computation
-5. **Lightweight Decoder**: FPN-style segmentation head
+```
+temporal_mode="all":
+  TFEN (4 scales) → CTAM (all) → STSM (all) → MSDAM (all) → PUD → Flood Map
+                                                           ↓
+                                                         HFFM → CMH → Magnitude Map
+
+temporal_mode="deepest":
+  TFEN (4 scales) → [Scales 1-3: direct] ──────────────→ MSDAM → PUD → Flood Map
+                  → [Scale 4: CTAM → STSM] ────────────↗       ↓
+                                                             HFFM → CMH → Magnitude Map
+```
+
+### Components
+
+| Module | Name | Description |
+|--------|------|-------------|
+| **TFEN** | Temporal Feature Extraction Network | Siamese encoder (EfficientNetV2/ResNet) extracting 4-scale feature pyramids |
+| **CTAM** | Cross-Temporal Attention Module | Cross-temporal spatial attention with channel difference weighting |
+| **STSM** | Spatial-Temporal Sequence Module | ConvLSTM with proper hidden/cell state propagation for temporal modeling |
+| **MSDAM** | Multi-Scale Difference Aggregation Module | Dual-path (concatenation + absolute difference) feature aggregation |
+| **PUD** | Progressive Upsampling Decoder | FPN-style decoder with additive skip connections |
+| **HFFM** | Hierarchical Feature Fusion Module | Multi-scale feature aggregation for magnitude estimation |
+| **CMH** | Change Magnitude Head | Auxiliary head for change intensity prediction |
+
+### Configuration
+
+```python
+from src.model import FloodSenseModelConfig, build_model
+
+# Full temporal modeling (all scales)
+config = FloodSenseModelConfig(
+    encoder="efficientnetv2_rw_t",
+    temporal_mode="all",  # CTAM+STSM for all 4 scales
+    use_attention=True
+)
+
+# Efficient mode (deepest layer only)
+config = FloodSenseModelConfig(
+    encoder="resnet18",
+    temporal_mode="deepest",  # CTAM+STSM only for deepest layer
+    use_attention=True
+)
+
+model = build_model(config)
+```
 
 ## Supported Datasets
 
