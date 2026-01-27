@@ -225,8 +225,8 @@ class FloodSense(nn.Module):
 
         if self.temporal_attn is not None:
             deep_attn = self.temporal_attn(feats_t0[-1], feats_t1[-1])
-            lstm_out, _ = self.convlstm(feats_t0[-1], None)
-            lstm_out, _ = self.convlstm(feats_t1[-1], (lstm_out, lstm_out))
+            h1, (h1_out, c1_out) = self.convlstm(feats_t0[-1], None)
+            lstm_out, _ = self.convlstm(feats_t1[-1], (h1_out, c1_out))
 
         target_size = diff_feats[0].shape[-2:]
         upsampled = []
