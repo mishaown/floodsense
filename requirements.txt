@@ -6,6 +6,7 @@ tensorboard>=2.13.0
 pyyaml>=6.0
 scikit-learn>=1.2.0
 scikit-image>=0.21.0
+opencv-python>=4.8.0
 pillow>=9.5.0
 matplotlib>=3.7.0
 numpy>=1.24.0
