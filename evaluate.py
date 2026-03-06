@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from src.config import load_config
 from src.model import FloodSense, FloodSenseModelConfig
 from src.metrics import FloodMetrics
-from data import build_dataloader
+from data import build_dataloader, infer_input_channels
 
 
 def evaluate(model, test_loader, device, save_predictions=False, output_dir=None):
@@ -77,16 +77,23 @@ def main():
 
     config = load_config(args.config)
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
+    preprocessing_config = config.preprocessing.__dict__
+    effective_in_channels = infer_input_channels(
+        config.dataset.name,
+        config.dataset.in_channels,
+        preprocessing_config
+    )
 
     test_loader = build_dataloader(
         config.dataset.name, config.dataset.root, args.split,
-        config.training.batch_size, config.training.num_workers,
-        config.dataset.image_size, shuffle=False,
-        in_channels=config.dataset.in_channels
+        config.training.batch_size, num_workers=config.training.num_workers,
+        image_size=config.dataset.image_size, shuffle=False,
+        in_channels=config.dataset.in_channels,
+        preprocessing_config=preprocessing_config
     )
 
     model_config = FloodSenseModelConfig(
-        in_channels=config.dataset.in_channels, num_classes=config.dataset.num_classes,
+        in_channels=effective_in_channels, num_classes=config.dataset.num_classes,
         encoder=config.model.encoder, pretrained=False,
         hidden_dim=config.model.hidden_dim, lstm_hidden=config.model.lstm_hidden,
         lstm_layers=config.model.lstm_layers, use_attention=config.model.use_attention,

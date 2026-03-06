@@ -31,6 +31,23 @@ class ModelConfig:
 
 
 @dataclass
+class PreprocessingConfig:
+    use_histogram_matching: bool = False
+    use_zscore: bool = False
+    use_adaptive_norm: bool = False
+    adaptive_percentile_low: float = 2.0
+    adaptive_percentile_high: float = 98.0
+    use_log_ratio: bool = False
+    log_ratio_clip: float = 3.0
+    use_ndi: bool = False
+    use_clahe: bool = False
+    use_difference_channel: bool = False
+    clahe_clip_limit: float = 2.0
+    clahe_tile_size: int = 8
+    eps: float = 1e-6
+
+
+@dataclass
 class OptimizerConfig:
     type: str = "AdamW"
     lr: float = 1e-4
@@ -77,6 +94,7 @@ class AugmentationConfig:
 @dataclass
 class FloodSenseConfig:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
+    preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     loss: LossConfig = field(default_factory=LossConfig)
@@ -109,6 +127,7 @@ def load_config(config_path: str) -> FloodSenseConfig:
     env_vars = load_env_local(project_root)
 
     dataset_cfg = DatasetConfig(**yaml_config.get('dataset', {}))
+    preprocessing_cfg = PreprocessingConfig(**yaml_config.get('preprocessing', {}))
     model_cfg = ModelConfig(**yaml_config.get('model', {}))
 
     training_dict = yaml_config.get('training', {})
@@ -145,6 +164,7 @@ def load_config(config_path: str) -> FloodSenseConfig:
 
     return FloodSenseConfig(
         dataset=dataset_cfg,
+        preprocessing=preprocessing_cfg,
         model=model_cfg,
         training=training_cfg,
         loss=loss_cfg,

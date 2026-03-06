@@ -62,8 +62,10 @@ class Sen1Floods11Dataset(BaseFloodDataset):
 
         # Initialize preprocessor if config provided
         self.preprocessor = None
+        self.use_difference_channel = False
         if preprocessing_config is not None:
             self.preprocessor = create_preprocessor_from_config(preprocessing_config)
+            self.use_difference_channel = preprocessing_config.get('use_difference_channel', False)
 
         # Find matching samples
         self.samples = self._find_samples()
@@ -167,7 +169,7 @@ class Sen1Floods11Dataset(BaseFloodDataset):
                 extra_list.append(extra_channels['log_ratio'])
             if 'ndi' in extra_channels:
                 extra_list.append(extra_channels['ndi'])
-            if 'difference' in extra_channels:
+            if self.use_difference_channel and 'difference' in extra_channels:
                 extra_list.append(extra_channels['difference'])
 
             if extra_list:

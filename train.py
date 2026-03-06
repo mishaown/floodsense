@@ -28,7 +28,7 @@ from src.config import load_config
 from src.model import FloodSense, FloodSenseModelConfig
 from src.losses import build_loss
 from src.metrics import FloodMetrics
-from data import build_dataloader
+from data import build_dataloader, infer_input_channels
 
 
 def setup_logging(output_dir: str) -> logging.Logger:
@@ -168,13 +168,38 @@ def main():
 
     writer = SummaryWriter(os.path.join(output_dir, 'tensorboard'))
 
-    train_loader = build_dataloader(config.dataset.name, config.dataset.root, 'train', config.training.batch_size, config.training.num_workers, config.dataset.image_size, config.dataset.in_channels)
-    val_loader = build_dataloader(config.dataset.name, config.dataset.root, 'val', config.training.batch_size, config.training.num_workers, config.dataset.image_size, config.dataset.in_channels)
+    preprocessing_config = config.preprocessing.__dict__
+    effective_in_channels = infer_input_channels(
+        config.dataset.name,
+        config.dataset.in_channels,
+        preprocessing_config
+    )
+
+    train_loader = build_dataloader(
+        config.dataset.name,
+        config.dataset.root,
+        'train',
+        config.training.batch_size,
+        num_workers=config.training.num_workers,
+        image_size=config.dataset.image_size,
+        in_channels=config.dataset.in_channels,
+        preprocessing_config=preprocessing_config
+    )
+    val_loader = build_dataloader(
+        config.dataset.name,
+        config.dataset.root,
+        'val',
+        config.training.batch_size,
+        num_workers=config.training.num_workers,
+        image_size=config.dataset.image_size,
+        in_channels=config.dataset.in_channels,
+        preprocessing_config=preprocessing_config
+    )
 
     logger.info(f"Train samples: {len(train_loader.dataset)}, Val samples: {len(val_loader.dataset)}")
 
     model_config = FloodSenseModelConfig(
-        in_channels=config.dataset.in_channels, num_classes=config.dataset.num_classes,
+        in_channels=effective_in_channels, num_classes=config.dataset.num_classes,
         encoder=config.model.encoder, pretrained=config.model.pretrained,
         hidden_dim=config.model.hidden_dim, lstm_hidden=config.model.lstm_hidden,
         lstm_layers=config.model.lstm_layers, use_attention=config.model.use_attention,

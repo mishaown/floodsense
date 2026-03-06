@@ -32,6 +32,52 @@ from .ombrias1 import (
 )
 
 
+PREPROCESSING_ENABLE_KEYS = (
+    'use_histogram_matching',
+    'use_zscore',
+    'use_adaptive_norm',
+    'use_log_ratio',
+    'use_ndi',
+    'use_clahe',
+    'use_difference_channel',
+)
+
+
+def is_preprocessing_enabled(preprocessing_config: Optional[Dict[str, Any]]) -> bool:
+    """Return True when any preprocessing feature is explicitly enabled."""
+    if not preprocessing_config:
+        return False
+    return any(bool(preprocessing_config.get(key, False)) for key in PREPROCESSING_ENABLE_KEYS)
+
+
+def infer_input_channels(
+    dataset_name: str,
+    base_channels: int,
+    preprocessing_config: Optional[Dict[str, Any]] = None
+) -> int:
+    """
+    Infer effective model input channels based on enabled preprocessing extras.
+
+    - Sen1Floods11 extra channels are 3-channel maps (VV/VH/VV+VH).
+    - S1GFloods and OmbriaS1 extra channels are single-channel maps.
+    """
+    if not is_preprocessing_enabled(preprocessing_config):
+        return base_channels
+
+    dataset_key = dataset_name.lower()
+    extra_per_feature = 3 if dataset_key == 'sen1floods11' else 1
+    extra_channels = 0
+
+    if preprocessing_config.get('use_log_ratio', False):
+        extra_channels += extra_per_feature
+    if preprocessing_config.get('use_ndi', False):
+        extra_channels += extra_per_feature
+    if preprocessing_config.get('use_difference_channel', False):
+        extra_channels += extra_per_feature
+
+    return base_channels + extra_channels
+
+
 def get_train_transforms(image_size: int = 256, add_ratio: bool = False):
     """Get training augmentations for SAR data."""
     # All datasets are now SAR, use the same transforms
@@ -103,6 +149,10 @@ def build_dataloader(
     elif preprocessing_config is not None:
         preproc_config = preprocessing_config
 
+    # Keep default dataset behavior unless at least one preprocessing option is enabled.
+    if not is_preprocessing_enabled(preproc_config):
+        preproc_config = None
+
     # Legacy support for add_ratio
     add_ratio = (in_channels == 6) if preproc_config is None else False
 
@@ -164,6 +214,8 @@ __all__ = [
     'create_preprocessor_from_config',
     'get_preset_preprocessor',
     'PRESET_CONFIGS',
+    'is_preprocessing_enabled',
+    'infer_input_channels',
     # Transforms
     'get_train_transforms',
     'get_val_transforms',
