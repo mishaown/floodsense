@@ -2,7 +2,9 @@
 FloodSense Inference Script
 
 Usage:
-    python inference.py --config configs/s1gfloods.yaml --checkpoint outputs/best.pth --random-samples 5
+    python inference.py --config configs/s1gfloods.yaml --checkpoint weights/s1gfloods/floodsense/best.pth --random-samples 5
+    python inference.py --config configs/sen1floods11.yaml --checkpoint weights/sen1floods11/floodsense/best.pth --random-samples 5
+    python inference.py --config configs/ombrias1.yaml --checkpoint weights/ombrias1/floodsense/best.pth --random-samples 5
     python inference.py --checkpoint outputs/best.pth --pre image_pre.png --post image_post.png
 """
 
@@ -23,7 +25,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.model import FloodSense, FloodSenseModelConfig
 from src.config import load_config
-from data import Sen1Floods11Dataset, S1GFloodsDataset, OmbriaS1Dataset
+from data import (
+    Sen1Floods11Dataset, S1GFloodsDataset, OmbriaS1Dataset,
+    infer_input_channels,
+)
 
 
 def load_image(path: str, image_size: int = 256, dataset_type: str = 'sen1floods11') -> torch.Tensor:
@@ -54,12 +59,18 @@ def visualize_result(img_pre, img_post, prediction, probability, save_path=None,
     ncols = 3 if ground_truth is not None else 2
     fig, axes = plt.subplots(2, ncols, figsize=(6 * ncols, 12))
 
+    def _to_display(channel):
+        mn, mx = channel.min(), channel.max()
+        if mx > mn:
+            return ((channel - mn) / (mx - mn)).astype(np.float32)
+        return np.zeros_like(channel, dtype=np.float32)
+
     if img_pre.shape[0] in (3, 6):
-        img_pre_vis = np.stack([img_pre[0]] * 3, axis=-1)
-        img_post_vis = np.stack([img_post[0]] * 3, axis=-1)
+        img_pre_vis = np.stack([_to_display(img_pre[0])] * 3, axis=-1)
+        img_post_vis = np.stack([_to_display(img_post[0])] * 3, axis=-1)
     else:
-        img_pre_vis = np.stack([img_pre.transpose(1, 2, 0)[:, :, 0]] * 3, axis=-1)
-        img_post_vis = np.stack([img_post.transpose(1, 2, 0)[:, :, 0]] * 3, axis=-1)
+        img_pre_vis = np.stack([_to_display(img_pre.transpose(1, 2, 0)[:, :, 0])] * 3, axis=-1)
+        img_post_vis = np.stack([_to_display(img_post.transpose(1, 2, 0)[:, :, 0])] * 3, axis=-1)
 
     axes[0, 0].imshow(img_pre_vis)
     axes[0, 0].set_title('Pre-Flood')
@@ -162,12 +173,16 @@ def main():
     if config:
         image_size = args.image_size or config.dataset.image_size
         encoder = args.encoder or config.model.encoder
-        in_channels = args.in_channels or config.dataset.in_channels
+        preprocessing_config = config.preprocessing.__dict__
+        in_channels = args.in_channels or infer_input_channels(
+            config.dataset.name, config.dataset.in_channels, preprocessing_config
+        )
         data_root = args.data_root or config.dataset.root
         dataset_name = config.dataset.name.lower()
     else:
         image_size = args.image_size or 256
         encoder = args.encoder or 'resnet18'
+        preprocessing_config = None
         in_channels = args.in_channels or 3
         data_root = args.data_root
         dataset_name = args.dataset_type
@@ -185,13 +200,14 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     if args.random_samples > 0:
-        add_ratio = (in_channels == 6)
+        dataset_kwargs = dict(root=data_root, split=args.split, image_size=image_size,
+                              preprocessing_config=preprocessing_config)
         if dataset_name == 'sen1floods11':
-            dataset = Sen1Floods11Dataset(root=data_root, split=args.split, image_size=image_size, add_ratio=add_ratio)
+            dataset = Sen1Floods11Dataset(**dataset_kwargs)
         elif dataset_name == 'ombrias1':
-            dataset = OmbriaS1Dataset(root=data_root, split=args.split, image_size=image_size, add_ratio=add_ratio)
+            dataset = OmbriaS1Dataset(**dataset_kwargs)
         else:
-            dataset = S1GFloodsDataset(root=data_root, split=args.split, image_size=image_size, add_ratio=add_ratio)
+            dataset = S1GFloodsDataset(**dataset_kwargs)
         inference_from_dataset(model, dataset, args.random_samples, device, output_dir, args.seed)
     elif args.pre and args.post:
         img_pre = load_image(args.pre, image_size, dataset_name).to(device)

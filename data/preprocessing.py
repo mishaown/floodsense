@@ -69,15 +69,13 @@ class SARPreprocessor:
 
         if use_clahe:
             try:
-                import cv2
-                self._cv2 = cv2
+                import cv2  # noqa: F401
             except ImportError:
                 raise ImportError("OpenCV (cv2) required for CLAHE. Install with: pip install opencv-python")
 
         if use_histogram_matching:
             try:
-                from skimage import exposure
-                self._skimage_exposure = exposure
+                from skimage import exposure  # noqa: F401
             except ImportError:
                 raise ImportError("scikit-image required for histogram matching. Install with: pip install scikit-image")
 
