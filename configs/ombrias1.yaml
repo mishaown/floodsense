@@ -25,14 +25,14 @@ model:
   pretrained: true
   hidden_dim: 64
   lstm_hidden: 128
-  lstm_layers: 1
+  lstm_layers: 2
   use_attention: true
   dropout: 0.2
 
 training:
-  epochs: 100
-  batch_size: 16
-  num_workers: 4
+  epochs: 50
+  batch_size: 32
+  num_workers: 8
   mixed_precision: true
   gradient_clip: 1.0
 
@@ -47,10 +47,14 @@ training:
     min_lr: 1.0e-6
 
 loss:
-  bce_weight: 1.0
-  dice_weight: 1.0
-  focal_weight: 0.5
+  bce_weight: 0.0
+  dice_weight: 0.0
+  focal_weight: 0.0
   focal_gamma: 2.0
+  tversky_weight: 1.0
+  tversky_alpha: 0.3
+  tversky_beta: 0.7
+  mag_weight: 0.5
   ignore_index: 255
 
 augmentation:

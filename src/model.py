@@ -1,32 +1,8 @@
 """
-FloodSense: Theoretically Correct Bi-Temporal Flood Detection Architecture
-
-Architecture Flow (temporal_mode="all"):
-    TFEN (4 scales) → CTAM (all scales) → STSM (all scales) → MSDAM (all scales) → PUD → Flood Map
-                                                                                  ↓
-                                                                                HFFM
-                                                                                  ↓
-                                                                                CMH → Magnitude Map
-
-Architecture Flow (temporal_mode="deepest"):
-    TFEN (4 scales) → [Scale 1-3: direct] ────────────────────→ MSDAM (all scales) → PUD → Flood Map
-                    → [Scale 4: CTAM → STSM] ─────────────────↗                    ↓
-                                                                                  HFFM
-                                                                                    ↓
-                                                                                  CMH → Magnitude Map
-
 Configuration:
-    temporal_mode: "all" (default) - CTAM+STSM for all 4 scales
-                   "deepest" - CTAM+STSM only for deepest layer (computationally efficient)
-
-Components:
-    - TFEN: Temporal Feature Extraction Network (Siamese encoder)
-    - CTAM: Cross-Temporal Attention Module
-    - STSM: Spatial-Temporal Sequence Module
-    - MSDAM: Multi-Scale Difference Aggregation Module
-    - PUD: Progressive Upsampling Decoder
-    - HFFM: Hierarchical Feature Fusion Module
-    - CMH: Change Magnitude Head
+    temporal_mode: "all"      - CTAM→STSM sequential for all 4 scales (default)
+                   "parallel" - CTAM and STSM run independently on raw encoder features, outputs summed
+                   "deepest"  - CTAM+STSM only for deepest layer (computationally efficient)
 
 Input: (pre_flood, post_flood) image pairs
 Output: {'logits': flood_mask, 'magnitude': change_intensity}
@@ -54,7 +30,7 @@ class FloodSenseModelConfig:
     dropout: float = 0.1
     img_size: int = 256
     attention_reduction: int = 4
-    temporal_mode: str = "all"  # "all" = all scales, "deepest" = only deepest layer
+    temporal_mode: str = "parallel"  # "all" = sequential CTAM→STSM, "parallel" = independent CTAM+STSM, "deepest" = deepest layer only
 
 
 class ConvBlock(nn.Module):
@@ -463,21 +439,42 @@ class FloodSense(nn.Module):
         7. CMH: Auxiliary magnitude head for enhanced supervision
 
     Temporal Modes:
-        temporal_mode="all" (default):
-            All 4 scales processed through CTAM → STSM → MSDAM
-            Higher computational cost, richer temporal modeling
+        temporal_mode="parallel" (default):
+            CTAM and STSM both operate on raw encoder features independently.
+            Their outputs are summed before MSDAM. Direct gradient flow to both
+            modules makes this the strongest option at short training budgets.
+
+        temporal_mode="all":
+            All 4 scales processed through sequential CTAM → STSM → MSDAM.
+            STSM receives CTAM-refined features, giving it cleaner temporal signal.
+            Preferred at full training (100+ epochs).
 
         temporal_mode="deepest":
-            Only deepest layer: CTAM → STSM
-            Scales 1-3: Direct to MSDAM (bypass CTAM/STSM)
-            Lower computational cost, efficient for resource-constrained settings
+            Only deepest layer: CTAM → STSM.
+            Scales 1-3: Direct to MSDAM (bypass CTAM/STSM).
+            Lowest computational cost, useful for resource-constrained settings.
+
+    Data Flow (temporal_mode="parallel"):
+        Pre/Post Images → TFEN → [4 scales]
+                                    ├──► CTAM (per scale) ──────────────► (+)
+                                    └──► STSM (per scale, raw feats) ──► (+)
+                                                                          ↓
+                                                                   MSDAM (per scale)
+                                                                          ↓
+                                                               ┌──────────┴──────────┐
+                                                               ↓                     ↓
+                                                              PUD                  HFFM
+                                                               ↓                     ↓
+                                                          Flood Logits              CMH
+                                                                                     ↓
+                                                                              Magnitude Map
 
     Data Flow (temporal_mode="all"):
         Pre/Post Images → TFEN → [4 scales]
                                     ↓
                             CTAM (per scale)
                                     ↓
-                            STSM (per scale)
+                            STSM (per scale, on CTAM output)
                                     ↓
                             MSDAM (per scale)
                                     ↓
@@ -544,7 +541,7 @@ class FloodSense(nn.Module):
             self.stsm_modules = None
             self.stsm_projections = None
 
-        else:  # "all" mode - CTAM + STSM for all scales
+        else:  # "all" or "parallel" mode - CTAM + STSM for all scales (same modules, different forward)
             if self.config.use_attention:
                 self.ctam_modules = nn.ModuleList([
                     CrossTemporalAttentionModule(
@@ -705,12 +702,12 @@ class FloodSense(nn.Module):
                     temporal_feats_t0.append(f0)
                     temporal_feats_t1.append(f1)
 
-        else:  # "all" mode - CTAM + STSM for all scales
+        else:  # "all" or "parallel" mode - CTAM + STSM for all scales
             temporal_feats_t0 = []
             temporal_feats_t1 = []
 
             for i, (f0, f1) in enumerate(zip(feats_t0, feats_t1)):
-                # Apply CTAM if enabled
+                # Apply CTAM if enabled (both modes use CTAM on raw encoder features)
                 if self.ctam_modules is not None:
                     f0_attn = self.ctam_modules[i](f0, f1)
                     f1_attn = self.ctam_modules[i](f1, f0)  # Bidirectional attention
@@ -718,14 +715,20 @@ class FloodSense(nn.Module):
                     f0_attn = f0
                     f1_attn = f1
 
-                # Apply STSM (receives CTAM-enhanced features)
-                stsm_out = self.stsm_modules[i](f0_attn, f1_attn)
+                if self.temporal_mode == "parallel":
+                    # STSM operates on raw encoder features independently of CTAM.
+                    # Both modules see the same unfiltered signal; outputs are summed.
+                    stsm_out = self.stsm_modules[i](f0, f1)
+                else:
+                    # "all": STSM receives CTAM-enhanced features (sequential pipeline).
+                    # CTAM first suppresses irrelevant activations so STSM models
+                    # cleaner temporal transitions.
+                    stsm_out = self.stsm_modules[i](f0_attn, f1_attn)
 
                 # Project STSM output back to encoder channel dimension
                 stsm_proj = self.stsm_projections[i](stsm_out)
 
-                # Combine CTAM features with STSM temporal modeling
-                # Add residual connection for gradient flow
+                # Combine CTAM features with STSM temporal modeling (residual)
                 temporal_feats_t0.append(f0_attn + stsm_proj)
                 temporal_feats_t1.append(f1_attn + stsm_proj)
 

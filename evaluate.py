@@ -2,8 +2,9 @@
 FloodSense Evaluation Script
 
 Usage:
-    python evaluate.py --config configs/s1gfloods.yaml --checkpoint outputs/best.pth
-    python evaluate.py --config configs/sen1floods11.yaml --checkpoint outputs/best.pth
+    python evaluate.py --config configs/s1gfloods.yaml --checkpoint weights/s1gfloods/floodsense/best.pth
+    python evaluate.py --config configs/sen1floods11.yaml --checkpoint weights/sen1floods11/floodsense/best.pth
+    python evaluate.py --config configs/ombrias1.yaml --checkpoint weights/ombrias1/floodsense/best.pth
 """
 
 import argparse
@@ -88,7 +89,7 @@ def main():
         config.dataset.name, config.dataset.root, args.split,
         config.training.batch_size, num_workers=config.training.num_workers,
         image_size=config.dataset.image_size, shuffle=False,
-        in_channels=config.dataset.in_channels,
+        in_channels=effective_in_channels,
         preprocessing_config=preprocessing_config
     )
 

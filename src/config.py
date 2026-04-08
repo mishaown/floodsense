@@ -78,6 +78,10 @@ class LossConfig:
     dice_weight: float = 1.0
     focal_weight: float = 0.0
     focal_gamma: float = 2.0
+    tversky_weight: float = 0.0
+    tversky_alpha: float = 0.3
+    tversky_beta: float = 0.7
+    mag_weight: float = 0.0
     ignore_index: int = 255
 
 

@@ -134,6 +134,8 @@ def validate(model, val_loader, criterion, device):
 
 
 def save_checkpoint(model, optimizer, scheduler, epoch, metrics, output_dir, is_best=False, config=None):
+    if not is_best:
+        return
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
@@ -141,11 +143,7 @@ def save_checkpoint(model, optimizer, scheduler, epoch, metrics, output_dir, is_
         'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
         'metrics': metrics,
     }
-    torch.save(checkpoint, os.path.join(output_dir, 'latest.pth'))
-    if is_best:
-        torch.save(checkpoint, os.path.join(output_dir, 'best.pth'))
-    if (epoch + 1) % 10 == 0:
-        torch.save(checkpoint, os.path.join(output_dir, f'epoch_{epoch+1}.pth'))
+    torch.save(checkpoint, os.path.join(output_dir, 'best.pth'))
 
 
 def main():
@@ -153,20 +151,26 @@ def main():
     parser.add_argument('--config', type=str, required=True)
     parser.add_argument('--resume', type=str, default=None)
     parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--epochs', type=int, default=None,
+                        help='Override training epochs from config/.env.local')
     args = parser.parse_args()
 
     config = load_config(args.config)
+    if args.epochs is not None:
+        config.training.epochs = args.epochs
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_dir = os.path.join(config.output_dir, f'{config.dataset.name}_{timestamp}')
+    project_root = Path(__file__).resolve().parent
+    output_dir = str(project_root / "weights" / config.dataset.name / "floodsense")
+    run_dir    = str(project_root / "runs"    / config.dataset.name / "floodsense")
     os.makedirs(output_dir, exist_ok=True)
 
     logger = setup_logging(output_dir)
-    logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Weights directory: {output_dir}")
+    logger.info(f"TensorBoard directory: {run_dir}")
     logger.info(f"Device: {device}")
 
-    writer = SummaryWriter(os.path.join(output_dir, 'tensorboard'))
+    writer = SummaryWriter(run_dir)
 
     preprocessing_config = config.preprocessing.__dict__
     effective_in_channels = infer_input_channels(
@@ -182,7 +186,7 @@ def main():
         config.training.batch_size,
         num_workers=config.training.num_workers,
         image_size=config.dataset.image_size,
-        in_channels=config.dataset.in_channels,
+        in_channels=effective_in_channels,
         preprocessing_config=preprocessing_config
     )
     val_loader = build_dataloader(
@@ -192,7 +196,7 @@ def main():
         config.training.batch_size,
         num_workers=config.training.num_workers,
         image_size=config.dataset.image_size,
-        in_channels=config.dataset.in_channels,
+        in_channels=effective_in_channels,
         preprocessing_config=preprocessing_config
     )
 
@@ -210,9 +214,15 @@ def main():
     logger.info(f"Model parameters: {model.get_num_parameters():,}")
 
     criterion = build_loss({
-        'bce_weight': config.loss.bce_weight, 'dice_weight': config.loss.dice_weight,
-        'focal_weight': config.loss.focal_weight, 'focal_gamma': config.loss.focal_gamma,
-        'ignore_index': config.loss.ignore_index
+        'bce_weight': config.loss.bce_weight,
+        'dice_weight': config.loss.dice_weight,
+        'focal_weight': config.loss.focal_weight,
+        'focal_gamma': config.loss.focal_gamma,
+        'tversky_weight': config.loss.tversky_weight,
+        'tversky_alpha': config.loss.tversky_alpha,
+        'tversky_beta': config.loss.tversky_beta,
+        'mag_weight': config.loss.mag_weight,
+        'ignore_index': config.loss.ignore_index,
     })
 
     optimizer = create_optimizer(model, config)
