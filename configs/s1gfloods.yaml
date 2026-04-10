@@ -47,13 +47,13 @@ training:
     min_lr: 1.0e-6
 
 loss:
-  bce_weight: 0.0
-  dice_weight: 0.0
-  focal_weight: 0.0
+  bce_weight: 1.0
+  dice_weight: 1.0
+  focal_weight: 0.5
   focal_gamma: 2.0
-  tversky_weight: 1.0
-  tversky_alpha: 0.3
-  tversky_beta: 0.7
+  tversky_weight: 0.0
+  tversky_alpha: 0.0
+  tversky_beta: 0.0
   mag_weight: 0.5
   ignore_index: 255
 
