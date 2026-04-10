@@ -1,5 +1,7 @@
 # FloodSense
 
+> **Notice:** The research paper has been submitted to IEEE Transactions on Geoscience and Remote Sensing.
+
 Lightweight bi-temporal flood detection from SAR satellite imagery using deep learning.
 
 ## Features
@@ -62,6 +64,22 @@ FloodSense/
     ├── s1gfloods.yaml
     ├── sen1floods11.yaml
     └── ombrias1.yaml
+```
+
+## Environment Setup
+
+Create a `.env.local` file in the project root (not committed — machine-specific):
+
+```ini
+S1GFLOODS_ROOT=/path/to/S1GFloods
+SEN1FLOODS11_ROOT=/path/to/Sen1Floods11
+OMBRIAS1_ROOT=/path/to/OmbriaS1
+
+# Optional: override config values
+BATCH_SIZE=4
+NUM_WORKERS=4
+EPOCHS=50
+OUTPUT_DIR=outputs
 ```
 
 ## Configuration
