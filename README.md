@@ -85,17 +85,17 @@ FloodSense processes bi-temporal image pairs through a modular pipeline:
 temporal_mode="parallel" (default):
   Pre/Post → TFEN (4 scales) ──► CTAM (per scale) ──────────────► (+) → MSDAM → PUD → Flood Map
                               └──► STSM (per scale, raw feats) ──► (+)          ↓
-                                                                             HFFM → CMH → Magnitude Map
+                                                                             HFFM → Magnitude Map
 
 temporal_mode="all":
   Pre/Post → TFEN (4 scales) → CTAM → STSM → MSDAM → PUD → Flood Map
                                                     ↓
-                                                 HFFM → CMH → Magnitude Map
+                                                 HFFM → Magnitude Map
 
 temporal_mode="deepest":
   Pre/Post → TFEN → [Scales 1-3: direct] ──────────────→ MSDAM → PUD → Flood Map
                   → [Scale 4: CTAM → STSM] ────────────↗        ↓
-                                                             HFFM → CMH → Magnitude Map
+                                                             HFFM → Magnitude Map
 ```
 
 ### Components
@@ -108,7 +108,6 @@ temporal_mode="deepest":
 | **MSDAM** | Multi-Scale Difference Aggregation Module | Dual-path (concatenation + absolute difference) feature aggregation |
 | **PUD** | Progressive Upsampling Decoder | FPN-style decoder with additive skip connections |
 | **HFFM** | Hierarchical Feature Fusion Module | Multi-scale feature aggregation for magnitude estimation |
-| **CMH** | Change Magnitude Head | Auxiliary head for change intensity prediction |
 
 ### Temporal Modes
 
