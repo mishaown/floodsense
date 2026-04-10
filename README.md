@@ -2,7 +2,7 @@
 
 > **Notice:** The research paper has been submitted to IEEE Transactions on Geoscience and Remote Sensing.
 
-Lightweight bi-temporal flood detection from SAR satellite imagery using deep learning.
+Parallel attention-recurrence networks for bi-temporal SAR flood mapping.
 
 ## Features
 
